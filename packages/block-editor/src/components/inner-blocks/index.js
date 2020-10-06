@@ -23,7 +23,7 @@ import getBlockContext from './get-block-context';
 /**
  * Internal dependencies
  */
-import BlockList from '../block-list';
+import { BlockListItems } from '../block-list';
 import { BlockContextProvider } from '../block-context';
 import { useBlockEditContext } from '../block-edit/context';
 import useBlockSync from '../provider/use-block-sync';
@@ -42,14 +42,86 @@ function UncontrolledInnerBlocks( props ) {
 		allowedBlocks,
 		template,
 		templateLock,
-		forwardedRef,
+		wrapperRef,
 		templateInsertUpdatesSelection,
 		__experimentalCaptureToolbars: captureToolbars,
+		__experimentalAppenderTagName,
+		renderAppender,
 		orientation,
 	} = props;
 
-	const isSmallScreen = useViewportMatch( 'medium', '<' );
+	useNestedSettingsUpdate(
+		clientId,
+		allowedBlocks,
+		templateLock,
+		captureToolbars,
+		orientation
+	);
 
+	useInnerBlockTemplateSync(
+		clientId,
+		template,
+		templateLock,
+		templateInsertUpdatesSelection
+	);
+
+	const blockListItems = (
+		<BlockListItems
+			rootClientId={ clientId }
+			renderAppender={ renderAppender }
+			__experimentalAppenderTagName={ __experimentalAppenderTagName }
+			wrapperRef={ wrapperRef }
+		/>
+	);
+
+	const context = useSelect(
+		( select ) => {
+			const block = select( 'core/block-editor' ).getBlock( clientId );
+			const blockType = getBlockType( block.name );
+
+			if ( ! blockType || ! blockType.providesContext ) {
+				return;
+			}
+
+			return getBlockContext( block.attributes, blockType );
+		},
+		[ clientId ]
+	);
+
+	return (
+		<BlockContextProvider value={ context }>
+			{ blockListItems }
+		</BlockContextProvider>
+	);
+}
+
+/**
+ * The controlled inner blocks component wraps the uncontrolled inner blocks
+ * component with the blockSync hook. This keeps the innerBlocks of the block in
+ * the block-editor store in sync with the blocks of the controlling entity. An
+ * example of an inner block controller is a template part block, which provides
+ * its own blocks from the template part entity data source.
+ *
+ * @param {Object} props The component props.
+ */
+function ControlledInnerBlocks( props ) {
+	useBlockSync( props );
+	return <UncontrolledInnerBlocks { ...props } />;
+}
+
+const ForwardedInnerBlocks = forwardRef( ( props, ref ) => {
+	const innerBlocksProps = useInnerBlocksProps( { ref }, props );
+	return (
+		<div className="block-editor-inner-blocks">
+			<div { ...innerBlocksProps } />
+		</div>
+	);
+} );
+
+export function useInnerBlocksProps( props = {}, options = {} ) {
+	const fallbackRef = useRef();
+	const { clientId } = useBlockEditContext();
+	const isSmallScreen = useViewportMatch( 'medium', '<' );
 	const hasOverlay = useSelect(
 		( select ) => {
 			const {
@@ -69,93 +141,31 @@ function UncontrolledInnerBlocks( props ) {
 		[ clientId, isSmallScreen ]
 	);
 
-	const context = useSelect(
-		( select ) => {
-			const block = select( 'core/block-editor' ).getBlock( clientId );
-			const blockType = getBlockType( block.name );
+	const ref = props.ref || fallbackRef;
+	const InnerBlocks =
+		options.value && options.onChange
+			? ControlledInnerBlocks
+			: UncontrolledInnerBlocks;
 
-			if ( ! blockType || ! blockType.providesContext ) {
-				return;
-			}
-
-			return getBlockContext( block.attributes, blockType );
-		},
-		[ clientId ]
-	);
-
-	useNestedSettingsUpdate(
-		clientId,
-		allowedBlocks,
-		templateLock,
-		captureToolbars,
-		orientation
-	);
-
-	useInnerBlockTemplateSync(
-		clientId,
-		template,
-		templateLock,
-		templateInsertUpdatesSelection
-	);
-
-	const classes = classnames( {
-		'has-overlay': hasOverlay,
-		'is-capturing-toolbar': captureToolbars,
-	} );
-
-	const blockList = (
-		<BlockContextProvider value={ context }>
-			<BlockList
-				{ ...props }
-				ref={ forwardedRef }
-				rootClientId={ clientId }
-				className={ classes }
-			/>
-		</BlockContextProvider>
-	);
-
-	if ( props.__experimentalTagName ) {
-		return blockList;
-	}
-
-	return <div className="block-editor-inner-blocks">{ blockList }</div>;
-}
-
-/**
- * The controlled inner blocks component wraps the uncontrolled inner blocks
- * component with the blockSync hook. This keeps the innerBlocks of the block in
- * the block-editor store in sync with the blocks of the controlling entity. An
- * example of an inner block controller is a template part block, which provides
- * its own blocks from the template part entity data source.
- *
- * @param {Object} props The component props.
- */
-function ControlledInnerBlocks( props ) {
-	useBlockSync( props );
-	return <UncontrolledInnerBlocks { ...props } />;
-}
-
-/**
- * Wrapped InnerBlocks component which detects whether to use the controlled or
- * uncontrolled variations of the InnerBlocks component. This is the component
- * which should be used throughout the application.
- */
-const ForwardedInnerBlocks = forwardRef( ( props, ref ) => {
-	const { clientId } = useBlockEditContext();
-	const fallbackRef = useRef();
-
-	const allProps = {
-		clientId,
-		forwardedRef: ref || fallbackRef,
+	return {
 		...props,
+		ref,
+		className: classnames(
+			props.className,
+			'block-editor-block-list__layout',
+			{
+				'has-overlay': hasOverlay,
+			}
+		),
+		children: (
+			<InnerBlocks
+				{ ...options }
+				clientId={ clientId }
+				wrapperRef={ ref }
+			/>
+		),
 	};
-
-	// Detects if the InnerBlocks should be controlled by an incoming value.
-	if ( props.value && props.onChange ) {
-		return <ControlledInnerBlocks { ...allProps } />;
-	}
-	return <UncontrolledInnerBlocks { ...allProps } />;
-} );
+}
 
 // Expose default appender placeholders as components.
 ForwardedInnerBlocks.DefaultBlockAppender = DefaultBlockAppender;

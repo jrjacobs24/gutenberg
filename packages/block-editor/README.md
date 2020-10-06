@@ -582,6 +582,10 @@ _Returns_
 
 -   `Object`: Props to pass to the element to mark as a block.
 
+<a name="useInnerBlocksProps" href="#useInnerBlocksProps">#</a> **useInnerBlocksProps**
+
+Undocumented declaration.
+
 <a name="validateThemeColors" href="#validateThemeColors">#</a> **validateThemeColors**
 
 Given an array of theme colors checks colors for validity
