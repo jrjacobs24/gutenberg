@@ -6,6 +6,7 @@ import {
 	useCallback,
 	useState,
 	useEffect,
+	useRef,
 	createPortal,
 } from '@wordpress/element';
 import { useEntityBlockEditor } from '@wordpress/core-data';
@@ -90,16 +91,29 @@ function IframeContent( { children, doc, head, styles, bodyClassName } ) {
 }
 
 export function IFrame( { children, head, styles, bodyClassName, ...props } ) {
-	const [ contentRef, setContentRef ] = useState();
-	const doc = contentRef && contentRef.contentWindow.document;
+	const [ doc, setDoc ] = useState();
+	const ref = useRef();
+
+	useEffect( () => {
+		const _doc = ref.current.contentWindow.document;
+		const { readyState } = _doc;
+
+		if ( readyState === 'interactive' || readyState === 'complete' ) {
+			setDoc( _doc );
+		}
+	}, [] );
 
 	return (
 		<iframe
 			{ ...props }
-			ref={ setContentRef }
+			ref={ ref }
 			title={ __( 'Editor canvas' ) }
 			name="editor-canvas"
-			data-loaded={ !! contentRef }
+			data-loaded={ !! doc }
+			onLoad={ () => {
+				// Document is not immediately loaded in Firefox.
+				setDoc( ref.current.contentWindow.document );
+			} }
 		>
 			{ doc && (
 				<IframeContent
