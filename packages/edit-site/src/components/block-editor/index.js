@@ -75,6 +75,11 @@ function IframeContent( { children, doc, head, styles, bodyClassName } ) {
 			}
 
 			const { ownerNode, cssRules } = styleSheet;
+
+			if ( ! cssRules ) {
+				return;
+			}
+
 			const isMatch = Array.from( cssRules ).find(
 				( { selectorText } ) =>
 					selectorText &&
